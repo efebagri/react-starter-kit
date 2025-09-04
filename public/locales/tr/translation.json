@@ -1,0 +1,17 @@
+{
+  "home": "Ana Sayfa",
+  "success": {
+    "title": "Başarılı"
+  },
+  "errors": {
+    "title": "Hata"
+  },
+
+  "header": {
+    "test": "Başlık"
+  },
+
+  "footer": {
+    "test": "Altbilgi"
+  }
+}
