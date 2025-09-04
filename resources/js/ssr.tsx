@@ -14,7 +14,7 @@ createServer((page) =>
         // Dynamically set document title using app name from shared props
         title: (title) => {
             // Safely read Laravel's app name from shared props
-            const appName = page?.props?.name ?? 'Laravel';
+            const appName = page?.props?.name ?? 'dev_ng';
             return `${title} - ${appName}`;
         },
 
