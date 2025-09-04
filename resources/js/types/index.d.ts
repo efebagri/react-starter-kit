@@ -21,14 +21,6 @@ export interface NavItem {
     icon?: LucideIcon | null;
     isActive?: boolean;
     permission?: string;
-    children?: NavItem[];
-    external?: boolean;
-    badge?: string;
-}
-
-export interface NavSection {
-    label: string;
-    items: NavItem[];
 }
 
 export interface SharedData {
