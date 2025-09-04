@@ -15,7 +15,6 @@ import AppLogo from "./app-logo";
 import type { NavItem, NavSection } from "@/types";
 import { NavMain } from "@/components/elements/nav-main";
 
-// ---------- Beispielsektionen: App ----------
 const appSections: NavSection[] = [
     {
         label: "Produkte",
@@ -42,7 +41,6 @@ const appSections: NavSection[] = [
     },
 ];
 
-// ---------- Beispielsektionen: Admin ----------
 const adminSections: NavSection[] = [
     {
         label: "Übersicht",
@@ -103,9 +101,9 @@ export function AppSidebar() {
             <SidebarHeader className="border-b border-sidebar-border/50">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <Link 
-                            href="/app/dashboard" 
-                            prefetch 
+                        <Link
+                            href="/app/dashboard"
+                            prefetch
                             className="flex items-center gap-2 p-2 rounded-lg hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
                         >
                             <AppLogo />
