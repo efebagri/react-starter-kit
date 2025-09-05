@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\Auth\WebAuthnLoginController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -33,6 +34,7 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
 });
 
 Route::middleware('auth')->group(function () {
@@ -60,4 +62,13 @@ Route::middleware('auth')->group(function () {
 
     Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])
         ->name('two-factor.verify');
+});
+
+// WebAuthn Login routes (guest access)
+Route::middleware('guest')->group(function () {
+    Route::get('webauthn/login/options', [WebAuthnLoginController::class, 'generateAuthenticationOptions'])
+        ->name('webauthn.login.options');
+    
+    Route::post('webauthn/login', [WebAuthnLoginController::class, 'authenticate'])
+        ->name('webauthn.login');
 });

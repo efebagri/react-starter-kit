@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Helpers\FormatHelper;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -53,7 +55,9 @@ class SessionController extends Controller
                     'browser' => $this->getBrowserBadge($ua),
                     'device_type' => $deviceType,
                     'user_agent' => $session->user_agent,
-                    'last_activity' => Carbon::createFromTimestamp($session->last_activity)->isoFormat('DD/MM/YYYY, HH:mm [GMT]Z'),
+                    'last_activity' => FormatHelper::formatDateTime(
+                        Carbon::createFromTimestamp($session->last_activity)->setTimezone(config('app.timezone'))
+                    ),
                     'is_current_device' => $session->id === session()->getId(),
                 ];
             });
@@ -61,5 +65,38 @@ class SessionController extends Controller
         return Inertia::render('app/settings/sessions', [
             'sessions' => $sessions,
         ]);
+    }
+
+    public function destroy(Request $request, $sessionId)
+    {
+        $userId = Auth::id();
+        $currentSessionId = session()->getId();
+
+        // Prevent deleting current session
+        if ($sessionId === $currentSessionId) {
+            return redirect()->back()->with('error', 'Cannot delete current session');
+        }
+
+        // Delete the specific session
+        DB::table('sessions')
+            ->where('id', $sessionId)
+            ->where('user_id', $userId)
+            ->delete();
+
+        return redirect()->back()->with('success', 'Session successfully signed out');
+    }
+
+    public function destroyOthers(Request $request)
+    {
+        $userId = Auth::id();
+        $currentSessionId = session()->getId();
+
+        // Delete all sessions except the current one
+        DB::table('sessions')
+            ->where('user_id', $userId)
+            ->where('id', '!=', $currentSessionId)
+            ->delete();
+
+        return redirect()->back()->with('success', 'All other sessions successfully signed out');
     }
 }

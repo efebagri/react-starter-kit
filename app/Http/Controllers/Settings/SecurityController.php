@@ -86,7 +86,7 @@ class SecurityController extends Controller
 
         $this->twoFactorService->disableTwoFactorAuthentication($user);
 
-        return response()->json(['message' => 'Two-factor authentication has been disabled.']);
+        return redirect()->back()->with('success', 'Two-factor authentication has been disabled.');
     }
 
     public function regenerateRecoveryCodes(Request $request)
@@ -210,9 +210,9 @@ class SecurityController extends Controller
         }
 
         if ($this->webAuthnService->removeCredential($user, $request->credential_id)) {
-            return response()->json(['message' => 'Passkey removed successfully']);
+            return redirect()->back()->with('success', 'Passkey removed successfully');
         }
 
-        return response()->json(['error' => 'Passkey not found'], 404);
+        return redirect()->back()->with('error', 'Passkey not found');
     }
 }

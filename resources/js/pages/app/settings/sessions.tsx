@@ -2,6 +2,8 @@ import { Head, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/layouts/app/app-layout';
 import SettingsLayout from '@/layouts/app/settings/layout';
 import HeadingSmall from '@/components/heading-small';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { BreadcrumbItem } from '@/types';
 import {
     Monitor,
@@ -13,6 +15,7 @@ import {
     MapPin,
     Clock,
 } from 'lucide-react';
+import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Sessions', href: '/app/settings/sessions' },
@@ -30,6 +33,9 @@ interface Session {
 
 export default function Sessions() {
     const { sessions } = usePage<{ sessions: Session[] }>().props;
+    const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+    const [sessionToSignOut, setSessionToSignOut] = useState<Session | null>(null);
+    const [showSignOutAllDialog, setShowSignOutAllDialog] = useState(false);
 
     // Returns an icon based on the device type
     const deviceIcon = (type: Session['device_type']) => {
@@ -46,12 +52,26 @@ export default function Sessions() {
     };
 
     // Handle sign out of a specific session
-    const signOutSession = (id: string) => {
-        if (confirm('Do you really want to sign out from this session?')) {
-            router.delete(route('sessions.destroy', id), {
+    const signOutSession = (session: Session) => {
+        setSessionToSignOut(session);
+        setShowSignOutDialog(true);
+    };
+
+    const confirmSignOut = () => {
+        if (sessionToSignOut) {
+            router.delete(route('sessions.destroy', sessionToSignOut.id), {
                 preserveScroll: true,
             });
         }
+        setShowSignOutDialog(false);
+        setSessionToSignOut(null);
+    };
+
+    const signOutAllOthers = () => {
+        router.post(route('sessions.destroy-others'), {}, {
+            preserveScroll: true,
+        });
+        setShowSignOutAllDialog(false);
     };
 
     return (
@@ -59,10 +79,22 @@ export default function Sessions() {
             <Head title="Sessions" />
             <SettingsLayout>
                 <div className="space-y-6">
-                    <HeadingSmall
-                        title="Sessions"
-                        description="View and manage your active sessions and connected devices."
-                    />
+                    <div className="flex items-center justify-between">
+                        <HeadingSmall
+                            title="Sessions"
+                            description="View and manage your active sessions and connected devices."
+                        />
+                        {sessions.filter(s => !s.is_current_device).length > 0 && (
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowSignOutAllDialog(true)}
+                                className="bg-red-50 border-red-200 text-red-700 hover:bg-red-100 hover:border-red-300 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 transition-all duration-200 shadow-sm hover:shadow-md"
+                            >
+                                <LogOut className="h-4 w-4 mr-2" />
+                                <span className="font-medium">Sign out all others</span>
+                            </Button>
+                        )}
+                    </div>
 
                     {/* Session list (no grid, stacked vertically) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
@@ -79,7 +111,7 @@ export default function Sessions() {
                                 {/* Sign out button (if not current device) */}
                                 {!session.is_current_device && (
                                     <button
-                                        onClick={() => signOutSession(session.id)}
+                                        onClick={() => signOutSession(session)}
                                         className="absolute top-4 right-4 flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 rounded hover:bg-red-200 dark:hover:bg-red-800 transition"
                                     >
                                         <LogOut className="h-4 w-4" />
@@ -120,6 +152,51 @@ export default function Sessions() {
                         ))}
                     </div>
                 </div>
+
+                {/* Sign Out Single Session Dialog */}
+                <Dialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Session abmelden?</DialogTitle>
+                            <DialogDescription>
+                                Bist du dir sicher, dass du diese Session beenden möchtest?
+                                {sessionToSignOut && (
+                                    <span className="block mt-2 font-medium">
+                                        {sessionToSignOut.platform} – {sessionToSignOut.browser}
+                                    </span>
+                                )}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <Button variant="outline" onClick={() => setShowSignOutDialog(false)}>
+                                Abbrechen
+                            </Button>
+                            <Button variant="destructive" onClick={confirmSignOut}>
+                                Ja, abmelden
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Sign Out All Others Dialog */}
+                <Dialog open={showSignOutAllDialog} onOpenChange={setShowSignOutAllDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Alle anderen Sessions abmelden?</DialogTitle>
+                            <DialogDescription>
+                                Dies beendet alle deine aktiven Sessions auf anderen Geräten. Du musst dich dort erneut anmelden.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <Button variant="outline" onClick={() => setShowSignOutAllDialog(false)}>
+                                Abbrechen
+                            </Button>
+                            <Button variant="destructive" onClick={signOutAllOthers}>
+                                Ja, alle abmelden
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </SettingsLayout>
         </AppLayout>
     );

@@ -1,6 +1,6 @@
 import { Head, useForm } from '@inertiajs/react';
-import { LoaderCircle } from 'lucide-react';
-import { FormEventHandler } from 'react';
+import { LoaderCircle, Key } from 'lucide-react';
+import { FormEventHandler, useState, useEffect } from 'react';
 
 import InputError from '@/components/input-error';
 import TextLink from '@/components/elements/text-link';
@@ -26,6 +26,110 @@ export default function Login({ status, canResetPassword }: LoginProps) {
         password: '',
         remember: false,
     });
+
+    const [webauthnSupported, setWebauthnSupported] = useState(false);
+    const [webauthnLoading, setWebauthnLoading] = useState(false);
+
+    // Check WebAuthn support on component mount
+    useEffect(() => {
+        const checkWebAuthnSupport = () => {
+            const isSupported = !!(
+                window.PublicKeyCredential &&
+                navigator.credentials &&
+                navigator.credentials.get &&
+                (window.location.protocol === 'https:' || window.location.hostname === 'localhost')
+            );
+            setWebauthnSupported(isSupported);
+        };
+        
+        checkWebAuthnSupport();
+    }, []);
+
+    const handleWebAuthnLogin = async () => {
+        if (!webauthnSupported) return;
+        
+        setWebauthnLoading(true);
+        try {
+            // Get authentication options using simple fetch without CSRF
+            const optionsResponse = await fetch('/webauthn/login/options', {
+                method: 'GET', // Change to GET to avoid CSRF issues
+                headers: {
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin',
+            });
+            
+            if (!optionsResponse.ok) {
+                throw new Error('Failed to get authentication options');
+            }
+            
+            const options = await optionsResponse.json();
+            
+            // Convert challenge from base64 to ArrayBuffer
+            const challenge = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+            
+            // Create assertion
+            const credential = await navigator.credentials.get({
+                publicKey: {
+                    challenge: challenge,
+                    rpId: options.rpId,
+                    allowCredentials: options.allowCredentials?.map((cred: any) => ({
+                        id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+                        type: cred.type,
+                        transports: cred.transports,
+                    })) || [],
+                    userVerification: options.userVerification,
+                    timeout: options.timeout,
+                }
+            }) as PublicKeyCredential;
+
+            if (!credential) {
+                throw new Error('Authentication canceled');
+            }
+
+            // Convert credential to JSON format
+            const credentialJson = {
+                id: credential.id,
+                rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+                type: credential.type,
+                response: {
+                    authenticatorData: btoa(String.fromCharCode(...new Uint8Array((credential.response as AuthenticatorAssertionResponse).authenticatorData))),
+                    clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(credential.response.clientDataJSON))),
+                    signature: btoa(String.fromCharCode(...new Uint8Array((credential.response as AuthenticatorAssertionResponse).signature))),
+                    userHandle: (credential.response as AuthenticatorAssertionResponse).userHandle ? btoa(String.fromCharCode(...new Uint8Array((credential.response as AuthenticatorAssertionResponse).userHandle!))) : null,
+                },
+            };
+
+            // Send authentication request
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const authResponse = await fetch('/webauthn/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken,
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    credential: credentialJson,
+                }),
+            });
+
+            if (authResponse.ok) {
+                // Redirect to dashboard on successful authentication
+                window.location.href = '/app';
+            } else {
+                const errorData = await authResponse.json();
+                throw new Error(errorData.error || 'Authentication failed');
+            }
+        } catch (error) {
+            console.error('WebAuthn login error:', error);
+            alert(`Login failed: ${error}`);
+        } finally {
+            setWebauthnLoading(false);
+        }
+    };
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -115,6 +219,38 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             'Log in'
                         )}
                     </button>
+
+                    {webauthnSupported && (
+                        <>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t border-white/20" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-purple-900/50 px-2 text-white/60">Or</span>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleWebAuthnLogin}
+                                disabled={webauthnLoading}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-lg py-2 rounded-md transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {webauthnLoading ? (
+                                    <div className="flex items-center justify-center gap-2">
+                                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                                        Authenticating...
+                                    </div>
+                                ) : (
+                                    <>
+                                        <Key className="h-4 w-4" />
+                                        Sign in with Passkey
+                                    </>
+                                )}
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 <div className="text-center text-sm text-white/70">

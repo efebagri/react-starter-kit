@@ -6,9 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import SettingsLayout from '@/layouts/app/settings/layout';
 import { Head, router } from '@inertiajs/react';
-import { startRegistration } from '@simplewebauthn/browser';
 import { Key, RefreshCw, Shield, Smartphone, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { BreadcrumbItem } from '@/types';
 import AppLayout from '@/layouts/app/app-layout';
 
@@ -31,9 +30,13 @@ interface SecurityPageProps {
     twoFactorEnabled: boolean;
     webAuthnCredentials: WebAuthnCredential[];
     recoveryCodes: string[];
+    flash?: {
+        success?: string;
+        error?: string;
+    };
 }
 
-export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, recoveryCodes }: SecurityPageProps) {
+export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, recoveryCodes, flash }: SecurityPageProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [showQrCode, setShowQrCode] = useState(false);
     const [qrCodeData, setQrCodeData] = useState<{ qr_code: string; recovery_codes: string[] } | null>(null);
@@ -42,8 +45,30 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
     const [password, setPassword] = useState('');
     const [passkeyName, setPasskeyName] = useState('');
     const [showPasskeyDialog, setShowPasskeyDialog] = useState(false);
+    const [webauthnSupported, setWebauthnSupported] = useState(false);
     const [showRemoveDialog, setShowRemoveDialog] = useState(false);
     const [credentialToRemove, setCredentialToRemove] = useState<WebAuthnCredential | null>(null);
+    const [showErrorDialog, setShowErrorDialog] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+
+    // Check WebAuthn support on the component mount
+    useEffect(() => {
+        const checkWebAuthnSupport = () => {
+            const isSupported = !!(
+                window.PublicKeyCredential &&
+                navigator.credentials &&
+                navigator.credentials.create &&
+                (window.location.protocol === 'https:' || window.location.hostname === 'localhost')
+            );
+            setWebauthnSupported(isSupported);
+
+            if (!isSupported) {
+                console.warn('WebAuthn not supported. Requirements: HTTPS + modern browser');
+            }
+        };
+
+        checkWebAuthnSupport();
+    }, []);
 
     const handleEnable2FA = async () => {
         setIsLoading(true);
@@ -99,22 +124,21 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
 
         setIsLoading(true);
         try {
-            const response = await fetch('/app/settings/security/two-factor/disable', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            // Use Inertia router for proper CSRF handling
+            router.delete('/app/settings/security/two-factor/disable', {
+                data: { password },
+                onSuccess: () => {
+                    setPassword('');
                 },
-                body: JSON.stringify({ password }),
+                onError: (errors) => {
+                    console.error('Error disabling 2FA:', errors);
+                },
+                onFinish: () => {
+                    setIsLoading(false);
+                }
             });
-
-            if (response.ok) {
-                router.reload();
-                setPassword('');
-            }
         } catch (error) {
             console.error('Error disabling 2FA:', error);
-        } finally {
             setIsLoading(false);
         }
     };
@@ -129,7 +153,6 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
             });
-            const data = await response.json();
 
             if (response.ok) {
                 router.reload();
@@ -158,21 +181,62 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
 
             if (!optionsResponse.ok) throw new Error(options.error);
 
-            // Transform the options for the browser API
-            const registrationResponse = await startRegistration({
-                rp: options.rp,
-                user: {
-                    id: options.user.id,
-                    name: options.user.name,
-                    displayName: options.user.displayName,
+            // Check if WebAuthn is supported
+            if (!webauthnSupported) {
+                const debugInfo = {
+                    PublicKeyCredential: !!window.PublicKeyCredential,
+                    credentials: !!navigator.credentials,
+                    create: !!navigator.credentials?.create,
+                    protocol: window.location.protocol,
+                    hostname: window.location.hostname
+                };
+                console.error('WebAuthn Debug Info:', debugInfo);
+                throw new Error(`WebAuthn nicht unterstützt. Debug: ${JSON.stringify(debugInfo)}`);
+            }
+
+            // Convert challenge from base64 to ArrayBuffer
+            const challenge = Uint8Array.from(atob(options.challenge), c => c.charCodeAt(0));
+            const userId = Uint8Array.from(atob(options.user.id), c => c.charCodeAt(0));
+
+            // Create WebAuthn credential
+            const credential = await navigator.credentials.create({
+                publicKey: {
+                    challenge: challenge,
+                    rp: {
+                        name: options.rp.name,
+                        id: options.rp.id,
+                    },
+                    user: {
+                        id: userId,
+                        name: options.user.name,
+                        displayName: options.user.displayName,
+                    },
+                    pubKeyCredParams: options.pubKeyCredParams,
+                    timeout: options.timeout,
+                    excludeCredentials: options.excludeCredentials?.map((cred: { id: string; type: string; transports: string[] }) => ({
+                        id: Uint8Array.from(atob(cred.id), c => c.charCodeAt(0)),
+                        type: cred.type,
+                        transports: cred.transports,
+                    })) || [],
+                    authenticatorSelection: options.authenticatorSelection,
+                    attestation: options.attestation,
+                }
+            }) as PublicKeyCredential;
+
+            if (!credential) {
+                throw new Error('Failed to create credential');
+            }
+
+            // Convert credential to JSON format
+            const registrationResponse = {
+                id: credential.id,
+                rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+                type: credential.type,
+                response: {
+                    attestationObject: btoa(String.fromCharCode(...new Uint8Array((credential.response as AuthenticatorAttestationResponse).attestationObject))),
+                    clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(credential.response.clientDataJSON))),
                 },
-                challenge: options.challenge,
-                pubKeyCredParams: options.pubKeyCredParams,
-                timeout: options.timeout,
-                excludeCredentials: options.excludeCredentials,
-                authenticatorSelection: options.authenticatorSelection,
-                attestation: options.attestation,
-            });
+            };
 
             // Register the credential
             const registerResponse = await fetch('/app/settings/security/webauthn/register', {
@@ -191,9 +255,14 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                 router.reload();
                 setShowPasskeyDialog(false);
                 setPasskeyName('');
+            } else {
+                const errorData = await registerResponse.json();
+                throw new Error(errorData.error || 'Registration failed');
             }
         } catch (error) {
             console.error('Error registering passkey:', error);
+            setErrorMessage(`Error: ${error}`);
+            setShowErrorDialog(true);
         } finally {
             setIsLoading(false);
         }
@@ -204,27 +273,26 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
 
         setIsLoading(true);
         try {
-            const response = await fetch('/app/settings/security/webauthn/credential', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                body: JSON.stringify({
+            // Use Inertia router for proper CSRF handling
+            router.delete('/app/settings/security/webauthn/credential', {
+                data: {
                     credential_id: credentialToRemove.credential_id,
                     password,
-                }),
+                },
+                onSuccess: () => {
+                    setShowRemoveDialog(false);
+                    setCredentialToRemove(null);
+                    setPassword('');
+                },
+                onError: (errors) => {
+                    console.error('Error removing passkey:', errors);
+                },
+                onFinish: () => {
+                    setIsLoading(false);
+                }
             });
-
-            if (response.ok) {
-                router.reload();
-                setShowRemoveDialog(false);
-                setCredentialToRemove(null);
-                setPassword('');
-            }
         } catch (error) {
             console.error('Error removing passkey:', error);
-        } finally {
             setIsLoading(false);
         }
     };
@@ -242,6 +310,29 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                     </div>
 
                     <Separator />
+
+                    {/* Flash Messages */}
+                    {flash?.success && (
+                        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
+                            <div className="flex items-center gap-2">
+                                <div className="h-2 w-2 bg-green-400 rounded-full"></div>
+                                <p className="text-sm text-green-800 dark:text-green-200">
+                                    {flash.success}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {flash?.error && (
+                        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+                            <div className="flex items-center gap-2">
+                                <div className="h-2 w-2 bg-red-400 rounded-full"></div>
+                                <p className="text-sm text-red-800 dark:text-red-200">
+                                    {flash.error}
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Two-Factor Authentication */}
                     <Card>
@@ -345,13 +436,25 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {!webauthnSupported && (
+                                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-2 w-2 bg-yellow-400 rounded-full"></div>
+                                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                            <strong>WebAuthn nicht verfügbar:</strong> Passkeys benötigen HTTPS und einen modernen Browser (Chrome, Firefox, Safari, Edge).
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                             <div className="flex items-center justify-between">
                                 <p className="text-sm">
                                     {webAuthnCredentials.length} passkey{webAuthnCredentials.length !== 1 ? 's' : ''} registered
                                 </p>
                                 <Dialog open={showPasskeyDialog} onOpenChange={setShowPasskeyDialog}>
                                     <DialogTrigger asChild>
-                                        <Button size="sm">Add Passkey</Button>
+                                        <Button size="sm" disabled={!webauthnSupported}>
+                                            Add Passkey
+                                        </Button>
                                     </DialogTrigger>
                                     <DialogContent>
                                         <DialogHeader>
@@ -451,6 +554,23 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                             </div>
                             <Button onClick={handleRemovePasskey} disabled={isLoading || !password} className="w-full" variant="destructive">
                                 Remove Passkey
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Error Dialog */}
+                <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Error</DialogTitle>
+                            <DialogDescription>
+                                {errorMessage}
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end mt-4">
+                            <Button onClick={() => setShowErrorDialog(false)}>
+                                OK
                             </Button>
                         </div>
                     </DialogContent>

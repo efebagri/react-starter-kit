@@ -17,6 +17,8 @@ Route::get('settings/password', [PasswordController::class, 'edit'])->name('pass
 Route::put('settings/password', [PasswordController::class, 'update'])->name('password.update');
 
 Route::get('settings/sessions', [SessionController::class, 'index'])->name('session.get');
+Route::delete('settings/sessions/{sessionId}', [SessionController::class, 'destroy'])->name('sessions.destroy');
+Route::post('settings/sessions/destroy-others', [SessionController::class, 'destroyOthers'])->name('sessions.destroy-others');
 
 Route::get('settings/security', [SecurityController::class, 'edit'])->name('security.edit');
 

@@ -27,8 +27,11 @@ class TwoFactorAuthentication
             return $next($request);
         }
 
-        // If user has 2FA enabled but session is not verified
-        if ($user->hasTwoFactorAuthenticationEnabled() && !session('two_factor_verified')) {
+        // Skip 2FA if user used WebAuthn to login (WebAuthn is considered secure enough)
+        $webAuthnAuthenticated = session('webauthn_authenticated');
+        
+        // If user has 2FA enabled but session is not verified (and didn't use WebAuthn)
+        if ($user->hasTwoFactorAuthenticationEnabled() && !session('two_factor_verified') && !$webAuthnAuthenticated) {
             // Check if this is a 2FA verification request
             if ($this->is2FAVerificationRequest($request)) {
                 return $this->handle2FAVerification($request, $next);

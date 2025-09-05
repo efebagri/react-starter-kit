@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        
+        // Exclude WebAuthn routes from CSRF verification
+        $middleware->validateCsrfTokens(except: [
+            'webauthn/*',
+        ]);
 
         $middleware->web(append: [
             HandleAppearance::class,

@@ -26,6 +26,7 @@ class WebAuthnService
                 'id' => $credential->credential_id,
                 'transports' => ['usb', 'nfc', 'ble', 'internal']
             ])
+            ->values()
             ->toArray();
 
         return [
