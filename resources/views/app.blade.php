@@ -18,6 +18,9 @@
 
         <!-- title -->
         <title inertia>{{ config('app.name', 'dev_ng') }}</title>
+        
+        <!-- CSRF Token -->
+        <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <!-- Core Meta / SEO -->
         <meta name="theme-color" content="#242424" data-react-helmet="true" />

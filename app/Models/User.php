@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use LaravelIdea\Helper\App\Models\_IH_Permission_C;
@@ -221,5 +222,25 @@ class User extends Authenticatable implements MustVerifyEmail
     public function allPermissions(): Collection|_IH_Permission_C|array
     {
         return Permission::all();
+    }
+
+    public function twoFactorAuthentication(): HasOne
+    {
+        return $this->hasOne(TwoFactorAuthentication::class);
+    }
+
+    public function webAuthnCredentials(): HasMany
+    {
+        return $this->hasMany(WebAuthnCredential::class);
+    }
+
+    public function hasTwoFactorAuthenticationEnabled(): bool
+    {
+        return $this->twoFactorAuthentication?->isConfirmed() ?? false;
+    }
+
+    public function hasWebAuthnCredentials(): bool
+    {
+        return $this->webAuthnCredentials()->exists();
     }
 }

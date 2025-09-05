@@ -8,6 +8,7 @@ import { type PropsWithChildren } from 'react';
 const sidebarNavItems: NavItem[] = [
     { title: 'Profile', href: '/app/settings/profile', icon: null },
     { title: 'Password', href: '/app/settings/password', icon: null },
+    { title: 'Security', href: '/app/settings/security', icon: null },
     { title: 'Sessions', href: '/app/settings/sessions', icon: null },
 ];
 
