@@ -14,8 +14,10 @@ import {
     CheckCircle,
     MapPin,
     Clock,
+    Globe,
 } from 'lucide-react';
 import { useState } from 'react';
+import { formatDateTime } from '@/extensions/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Sessions', href: '/app/settings/sessions' },
@@ -24,6 +26,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface Session {
     id: string;
     ip_address: string;
+    location: {
+        city: string | null;
+        country: string | null;
+        country_code: string | null;
+        formatted: string | null;
+    };
     platform: string;
     browser: string;
     device_type: 'mobile' | 'tablet' | 'desktop' | 'tv';
@@ -36,6 +44,7 @@ export default function Sessions() {
     const [showSignOutDialog, setShowSignOutDialog] = useState(false);
     const [sessionToSignOut, setSessionToSignOut] = useState<Session | null>(null);
     const [showSignOutAllDialog, setShowSignOutAllDialog] = useState(false);
+
 
     // Returns an icon based on the device type
     const deviceIcon = (type: Session['device_type']) => {
@@ -96,6 +105,7 @@ export default function Sessions() {
                         )}
                     </div>
 
+
                     {/* Session list (no grid, stacked vertically) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
                         {sessions.map((session) => (
@@ -108,7 +118,7 @@ export default function Sessions() {
                                         : 'border-zinc-200 dark:border-zinc-700'
                                 } hover:shadow-md`}
                             >
-                                {/* Sign out button (if not current device) */}
+                                {/* Sign out button (if not the current device) */}
                                 {!session.is_current_device && (
                                     <button
                                         onClick={() => signOutSession(session)}
@@ -137,15 +147,21 @@ export default function Sessions() {
                                     )}
                                 </div>
 
-                                {/* IP + timestamp */}
+                                {/* Location, IP + timestamp */}
                                 <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                    {session.location.formatted && (
+                                        <div className="flex items-center gap-2">
+                                            <Globe className="h-4 w-4 opacity-80" />
+                                            <span>{session.location.formatted}</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 opacity-80" />
                                         <span>{session.ip_address}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <Clock className="h-4 w-4 opacity-80" />
-                                        <span>{session.last_activity}</span>
+                                        <span>{formatDateTime(session.last_activity)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -157,9 +173,9 @@ export default function Sessions() {
                 <Dialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Session abmelden?</DialogTitle>
+                            <DialogTitle>Sign out session?</DialogTitle>
                             <DialogDescription>
-                                Bist du dir sicher, dass du diese Session beenden möchtest?
+                                Are you sure you want to end this session?
                                 {sessionToSignOut && (
                                     <span className="block mt-2 font-medium">
                                         {sessionToSignOut.platform} – {sessionToSignOut.browser}
@@ -169,10 +185,10 @@ export default function Sessions() {
                         </DialogHeader>
                         <div className="flex justify-end gap-2 mt-4">
                             <Button variant="outline" onClick={() => setShowSignOutDialog(false)}>
-                                Abbrechen
+                                Cancel
                             </Button>
                             <Button variant="destructive" onClick={confirmSignOut}>
-                                Ja, abmelden
+                                Yes, sign out
                             </Button>
                         </div>
                     </DialogContent>
@@ -182,17 +198,17 @@ export default function Sessions() {
                 <Dialog open={showSignOutAllDialog} onOpenChange={setShowSignOutAllDialog}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Alle anderen Sessions abmelden?</DialogTitle>
+                            <DialogTitle>Sign out all other sessions?</DialogTitle>
                             <DialogDescription>
-                                Dies beendet alle deine aktiven Sessions auf anderen Geräten. Du musst dich dort erneut anmelden.
+                                This will end all your active sessions on other devices. You will need to sign in again on those devices.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="flex justify-end gap-2 mt-4">
                             <Button variant="outline" onClick={() => setShowSignOutAllDialog(false)}>
-                                Abbrechen
+                                Cancel
                             </Button>
                             <Button variant="destructive" onClick={signOutAllOthers}>
-                                Ja, alle abmelden
+                                Yes, sign out all
                             </Button>
                         </div>
                     </DialogContent>

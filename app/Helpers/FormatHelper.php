@@ -3,6 +3,7 @@
 namespace App\Helpers;
 
 use DateTime;
+use DateTimeZone;
 use Exception;
 use InvalidArgumentException;
 
@@ -86,48 +87,156 @@ class FormatHelper
     }
 
     /**
-     * Formats a DateTime object or string to a readable datetime format.
+     * Get the user's timezone preference.
+     * Priority: browser timezone > user setting > app default
+     *
+     * @return string
+     */
+    private static function getUserTimezone(): string
+    {
+        // Try to get browser timezone from SystemHelper
+        if (class_exists('App\Helpers\SystemHelper')) {
+            $browserTimezone = SystemHelper::getBrowserTimezone();
+            if ($browserTimezone) {
+                return $browserTimezone;
+            }
+        }
+
+        // Fallback to app timezone
+        return config('app.timezone', 'UTC');
+    }
+
+    /**
+     * Convert a DateTime to user's timezone.
+     *
+     * @param DateTime $date
+     * @param string|null $timezone
+     * @return DateTime
+     */
+    private static function convertToUserTimezone(DateTime $date, ?string $timezone = null): DateTime
+    {
+        $userTimezone = $timezone ?? self::getUserTimezone();
+
+        try {
+            return $date->setTimezone(new DateTimeZone($userTimezone));
+        } catch (Exception) {
+            // If the timezone is invalid, return the original date
+            return $date;
+        }
+    }
+
+    /**
+     * Formats a DateTime object or string to a readable datetime format in the user's timezone.
      *
      * @param DateTime|string|null $date
      * @param string $dateFormat
      * @param string $timeFormat
+     * @param string|null $timezone Optional specific timezone to use
      * @return string
      */
-    public static function formatDateTime(DateTime|string|null $date, string $dateFormat = 'd.m.Y', string $timeFormat = 'H:i'): string
+    public static function formatDateTime(DateTime|string|null $date, string $dateFormat = 'd.m.Y', string $timeFormat = 'H:i', ?string $timezone = null): string
     {
         if (!$date) return '';
 
         try {
-            $date = is_string($date) ? new DateTime($date) : $date;
-            return $date->format("$dateFormat $timeFormat");
+            $dateObj = is_string($date) ? new DateTime($date) : $date;
+            $dateObj = self::convertToUserTimezone($dateObj, $timezone);
+            return $dateObj->format("$dateFormat $timeFormat");
         } catch (Exception) {
             return '';
         }
     }
 
     /**
-     * Formats a date string or DateTime to date only.
+     * Formats a date string or DateTime to date only in the user's timezone.
+     *
+     * @param DateTime|string|null $date
+     * @param string $format
+     * @param string|null $timezone Optional specific timezone to use
+     * @return string
      */
-    public static function formatDate(DateTime|string|null $date, string $format = 'd.m.Y'): string
+    public static function formatDate(DateTime|string|null $date, string $format = 'd.m.Y', ?string $timezone = null): string
     {
         if (!$date) return '';
 
         try {
-            $date = is_string($date) ? new DateTime($date) : $date;
-            return $date->format($format);
+            $dateObj = is_string($date) ? new DateTime($date) : $date;
+            $dateObj = self::convertToUserTimezone($dateObj, $timezone);
+            return $dateObj->format($format);
         } catch (Exception) {
             return '';
         }
     }
 
     /**
-     * Formats a DateTime or string to time.
+     * Formats a DateTime or string to time in user's timezone.
+     *
+     * @param DateTime|string $date
+     * @param string $format
+     * @param string|null $timezone Optional specific timezone to use
+     * @return string
      * @throws Exception
      */
-    public static function formatTime(DateTime|string $date, string $format = 'H:i'): string
+    public static function formatTime(DateTime|string $date, string $format = 'H:i', ?string $timezone = null): string
     {
-        $date = is_string($date) ? new DateTime($date) : $date;
-        return $date->format($format);
+        $dateObj = is_string($date) ? new DateTime($date) : $date;
+        $dateObj = self::convertToUserTimezone($dateObj, $timezone);
+        return $dateObj->format($format);
+    }
+
+    /**
+     * Formats a relative time (e.g., "2 hours ago") in user's timezone.
+     *
+     * @param DateTime|string|null $date
+     * @param string|null $timezone Optional specific timezone to use
+     * @return string
+     */
+    public static function formatRelativeTime(DateTime|string|null $date, ?string $timezone = null): string
+    {
+        if (!$date) return '';
+
+        try {
+            $dateObj = is_string($date) ? new DateTime($date) : $date;
+            $dateObj = self::convertToUserTimezone($dateObj, $timezone);
+
+            $now = new DateTime();
+            $now = self::convertToUserTimezone($now, $timezone);
+
+            $diff = $now->diff($dateObj);
+
+            if ($diff->y > 0) {
+                return $diff->y === 1 ? '1 year ago' : "{$diff->y} years ago";
+            } elseif ($diff->m > 0) {
+                return $diff->m === 1 ? '1 month ago' : "{$diff->m} months ago";
+            } elseif ($diff->d > 0) {
+                return $diff->d === 1 ? '1 day ago' : "{$diff->d} days ago";
+            } elseif ($diff->h > 0) {
+                return $diff->h === 1 ? '1 hour ago' : "{$diff->h} hours ago";
+            } elseif ($diff->i > 0) {
+                return $diff->i === 1 ? '1 minute ago' : "{$diff->i} minutes ago";
+            } else {
+                return 'just now';
+            }
+        } catch (Exception) {
+            return '';
+        }
+    }
+
+    /**
+     * Get current DateTime in user's timezone.
+     *
+     * @param string|null $timezone Optional specific timezone to use
+     * @return DateTime
+     */
+    public static function now(?string $timezone = null): DateTime
+    {
+        $userTimezone = $timezone ?? self::getUserTimezone();
+
+        try {
+            return new DateTime('now', new DateTimeZone($userTimezone));
+        } catch (Exception) {
+            return new DateTime(); // Fallback to server timezone
+        }
     }
 
     /**

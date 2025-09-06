@@ -10,6 +10,7 @@ import { Key, RefreshCw, Shield, Smartphone, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { BreadcrumbItem } from '@/types';
 import AppLayout from '@/layouts/app/app-layout';
+import { formatDateTime } from '@/extensions/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -441,7 +442,7 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                                     <div className="flex items-center gap-2">
                                         <div className="h-2 w-2 bg-yellow-400 rounded-full"></div>
                                         <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                                            <strong>WebAuthn nicht verfügbar:</strong> Passkeys benötigen HTTPS und einen modernen Browser (Chrome, Firefox, Safari, Edge).
+                                            <strong>WebAuthn not available:</strong> Passkeys require HTTPS and a modern browser (Chrome, Firefox, Safari, Edge).
                                         </p>
                                     </div>
                                 </div>
@@ -486,9 +487,9 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
                                             <div>
                                                 <p className="font-medium">{credential.name}</p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    Created {new Date(credential.created_at).toLocaleDateString()}
+                                                    Created {formatDateTime(credential.created_at)}
                                                     {credential.last_used_at && (
-                                                        <> • Last used {new Date(credential.last_used_at).toLocaleDateString()}</>
+                                                        <> • Last used {formatDateTime(credential.last_used_at)}</>
                                                     )}
                                                 </p>
                                             </div>

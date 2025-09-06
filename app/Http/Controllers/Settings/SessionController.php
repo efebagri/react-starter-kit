@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Settings;
 
 use App\Helpers\FormatHelper;
 use App\Http\Controllers\Controller;
+use App\Services\GeoIpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,7 @@ class SessionController extends Controller
                         (str_contains($ua, 'opera') || str_contains($ua, 'opr/') ? 'Opera' : 'Unknown'))));
     }
 
-    public function index()
+    public function index(GeoIpService $geoIpService)
     {
         $userId = Auth::id();
 
@@ -40,7 +41,7 @@ class SessionController extends Controller
             ->where('user_id', $userId)
             ->orderByDesc('last_activity')
             ->get()
-            ->map(function ($session) {
+            ->map(function ($session) use ($geoIpService) {
                 $ua = strtolower($session->user_agent);
 
                 $deviceType = str_contains($ua, 'smart-tv') || str_contains($ua, 'tv')
@@ -48,16 +49,23 @@ class SessionController extends Controller
                     : (str_contains($ua, 'tablet') ? 'tablet'
                         : (str_contains($ua, 'mobile') ? 'mobile' : 'desktop'));
 
+                // Get location information for the IP address
+                $location = $geoIpService->getLocation($session->ip_address ?? '');
+
                 return [
                     'id' => $session->id,
-                    'ip_address' => $session->ip_address ?? 'Unbekannt',
+                    'ip_address' => $session->ip_address ?? 'Unknown',
+                    'location' => [
+                        'city' => $location['city'],
+                        'country' => $location['country'],
+                        'country_code' => $location['country_code'],
+                        'formatted' => $geoIpService->getFormattedLocation($session->ip_address ?? ''),
+                    ],
                     'platform' => $this->getPlatformBadge($ua),
                     'browser' => $this->getBrowserBadge($ua),
                     'device_type' => $deviceType,
                     'user_agent' => $session->user_agent,
-                    'last_activity' => FormatHelper::formatDateTime(
-                        Carbon::createFromTimestamp($session->last_activity)->setTimezone(config('app.timezone'))
-                    ),
+                    'last_activity' => Carbon::createFromTimestamp($session->last_activity)->toISOString(),
                     'is_current_device' => $session->id === session()->getId(),
                 ];
             });

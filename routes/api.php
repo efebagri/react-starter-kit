@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Helpers\AdorableHelper;
+use App\Http\Controllers\Api\GeoIpController;
 
 Route::get('/avatar', function (Request $request) {
     $name = $request->query('name');
@@ -11,4 +12,10 @@ Route::get('/avatar', function (Request $request) {
     return response()->json([
         'dataUrl' => AdorableHelper::getProfilePicture($name, $size),
     ]);
+});
+
+// GeoIP routes
+Route::prefix('geoip')->group(function () {
+    Route::get('/location', [GeoIpController::class, 'getLocation']);
+    Route::post('/location', [GeoIpController::class, 'getLocationForIp']);
 });

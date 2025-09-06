@@ -154,6 +154,170 @@ class SystemHelper
     }
 
     /**
+     * Get browser timezone using modern JavaScript Intl.DateTimeFormat API.
+     * This should be called with timezone string sent from frontend.
+     *
+     * @param string|null $browserTimezone
+     * @return string|null
+     */
+    public static function getBrowserTimezone(?string $browserTimezone = null): ?string
+    {
+        // If timezone is provided directly from the browser (Intl.DateTimeFormat().resolvedOptions().timeZone)
+        if ($browserTimezone) {
+            return self::validateTimezone($browserTimezone);
+        }
+
+        // Check for browser timezone in request data
+        if ($timezone = Request::input('browser_timezone')) {
+            return self::validateTimezone($timezone);
+        }
+
+        // Check for browser timezone in the header
+        if ($timezone = Request::header('X-Browser-Timezone')) {
+            return self::validateTimezone($timezone);
+        }
+
+        // Check for browser timezone cookie
+        if ($timezone = Request::cookie('browser_timezone')) {
+            return self::validateTimezone($timezone);
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate if a timezone string is valid.
+     *
+     * @param string $timezone
+     * @return string|null
+     */
+    public static function validateTimezone(string $timezone): ?string
+    {
+        try {
+            new \DateTimeZone($timezone);
+            return $timezone;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Generate JavaScript code to detect and send browser timezone.
+     * This returns HTML with JavaScript to automatically detect timezone.
+     *
+     * @param string $method How to send timezone ('header', 'cookie', 'form', 'ajax')
+     * @param string|null $endpoint Optional endpoint for AJAX method
+     * @return string
+     */
+    public static function getTimezoneDetectionScript(string $method = 'cookie', ?string $endpoint = null): string
+    {
+        $script = "
+        <script>
+        (function() {
+            try {
+                // Get timezone using modern Intl API
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const offset = new Date().getTimezoneOffset();
+
+                console.log('Detected timezone:', timezone);
+                console.log('Timezone offset:', offset);";
+
+        switch ($method) {
+            case 'cookie':
+                $script .= "
+
+                // Set timezone cookie
+                document.cookie = 'browser_timezone=' + encodeURIComponent(timezone) + '; path=/; max-age=86400';
+                document.cookie = 'timezone_offset=' + offset + '; path=/; max-age=86400';";
+                break;
+
+            case 'header':
+                $script .= "
+
+                // Set timezone header for future requests (intercept fetch)
+                if (typeof fetch !== 'undefined' && !window.__timezoneInterceptorInstalled) {
+                    const originalFetch = window.fetch;
+                    window.fetch = function(...args) {
+                        let options = args[1] || {};
+                        if (typeof options === 'object') {
+                            options.headers = options.headers || {};
+                            options.headers['X-Browser-Timezone'] = timezone;
+                            options.headers['X-Timezone-Offset'] = offset.toString();
+                        }
+                        args[1] = options;
+                        return originalFetch.apply(this, args);
+                    };
+                    window.__timezoneInterceptorInstalled = true;
+                }";
+                break;
+
+            case 'ajax':
+                $endpoint = $endpoint ?: '/api/set-timezone';
+                $script .= "
+
+                // Send timezone via AJAX
+                if (typeof fetch !== 'undefined') {
+                    const csrfToken = document.querySelector('meta[name=\"csrf-token\"]')?.getAttribute('content');
+                    fetch('{$endpoint}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            ...(csrfToken && { 'X-CSRF-TOKEN': csrfToken })
+                        },
+                        body: JSON.stringify({
+                            timezone: timezone,
+                            offset: offset
+                        })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to set timezone: ' + response.status);
+                        }
+                        console.log('Timezone sent successfully');
+                    })
+                    .catch(error => {
+                        console.warn('Failed to send timezone:', error);
+                    });
+                }";
+                break;
+
+            case 'form':
+                $script .= "
+
+                // Add hidden inputs to all forms
+                document.addEventListener('DOMContentLoaded', function() {
+                    const forms = document.querySelectorAll('form');
+                    forms.forEach(function(form) {
+                        if (!form.querySelector('input[name=\"browser_timezone\"]')) {
+                            const timezoneInput = document.createElement('input');
+                            timezoneInput.type = 'hidden';
+                            timezoneInput.name = 'browser_timezone';
+                            timezoneInput.value = timezone;
+                            form.appendChild(timezoneInput);
+
+                            const offsetInput = document.createElement('input');
+                            offsetInput.type = 'hidden';
+                            offsetInput.name = 'timezone_offset';
+                            offsetInput.value = offset.toString();
+                            form.appendChild(offsetInput);
+                        }
+                    });
+                });";
+                break;
+        }
+
+        $script .= "
+            } catch (error) {
+                console.warn('Timezone detection failed:', error);
+            }
+        })();
+        </script>";
+
+        return $script;
+    }
+
+    /**
      * Detect the operating system platform based on the User-Agent string.
      *
      * @param string $userAgent
