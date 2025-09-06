@@ -58,9 +58,8 @@ const AppLogo: React.FC = () => {
         };
     }, [appearance]);
 
-    // Intentionally inverted: dark UI -> light logo, light UI -> dark logo
     const src = useMemo(
-        () => (isDark ? '/assets/img/logos/light.png' : '/assets/img/logos/dark.png'),
+        () => (isDark ? '/assets/img/logos/dark.png' : '/assets/img/logos/light.png'),
         [isDark]
     );
 
