@@ -155,15 +155,8 @@ function getBrowserLocale(): string {
         return localeOverride;
     }
     
-    console.debug('Getting browser locale...');
-    console.debug('navigator.language:', navigator.language);
-    console.debug('navigator.languages:', navigator.languages);
-    
     const timezone = getBrowserTimezone();
     const localeFromTimezone = getLocaleFromTimezone(timezone);
-    
-    console.debug('Browser timezone:', timezone);
-    console.debug('Locale from timezone:', localeFromTimezone);
     
     // Smart detection: If timezone suggests a specific locale and we have a matching language
     if (localeFromTimezone && navigator.languages) {
@@ -173,7 +166,6 @@ function getBrowserLocale(): string {
         );
         
         if (hasMatchingLanguage) {
-            console.debug('Smart detection: Using timezone locale due to matching language in list:', localeFromTimezone);
             return localeFromTimezone;
         }
     }

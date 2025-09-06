@@ -45,6 +45,30 @@ export default function Sessions() {
     const [sessionToSignOut, setSessionToSignOut] = useState<Session | null>(null);
     const [showSignOutAllDialog, setShowSignOutAllDialog] = useState(false);
 
+    // Helper function to get location display
+    const getLocationDisplay = (ipAddress: string, location: Session['location']): string => {
+        // Check if it's a local IP address
+        const localIpPatterns = [
+            /^127\./,           // 127.x.x.x (loopback)
+            /^192\.168\./,      // 192.168.x.x (private)
+            /^10\./,            // 10.x.x.x (private)
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./,  // 172.16-31.x.x (private)
+            /^::1$/,            // IPv6 loopback
+            /^fc00::/,          // IPv6 private
+            /^fe80::/,          // IPv6 link-local
+        ];
+
+        const isLocalIp = localIpPatterns.some(pattern => pattern.test(ipAddress)) || 
+                         ipAddress === 'localhost' || 
+                         ipAddress === '::1';
+
+        if (isLocalIp) {
+            return 'Local Network';
+        }
+
+        return location?.formatted || 'Unknown Location';
+    };
+
 
     // Returns an icon based on the device type
     const deviceIcon = (type: Session['device_type']) => {
@@ -149,12 +173,10 @@ export default function Sessions() {
 
                                 {/* Location, IP + timestamp */}
                                 <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
-                                    {session.location.formatted && (
-                                        <div className="flex items-center gap-2">
-                                            <Globe className="h-4 w-4 opacity-80" />
-                                            <span>{session.location.formatted}</span>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <Globe className="h-4 w-4 opacity-80" />
+                                        <span>{getLocationDisplay(session.ip_address, session.location)}</span>
+                                    </div>
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 opacity-80" />
                                         <span>{session.ip_address}</span>

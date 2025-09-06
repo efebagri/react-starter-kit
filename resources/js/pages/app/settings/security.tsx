@@ -58,7 +58,7 @@ export default function SecurityPage({ twoFactorEnabled, webAuthnCredentials, re
             const isSupported = !!(
                 window.PublicKeyCredential &&
                 navigator.credentials &&
-                navigator.credentials.create &&
+                typeof navigator.credentials.create === 'function' &&
                 (window.location.protocol === 'https:' || window.location.hostname === 'localhost')
             );
             setWebauthnSupported(isSupported);
