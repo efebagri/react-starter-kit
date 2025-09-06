@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import AssetImage from '../ui/assets-image';
 import { useAppearance } from '@/hooks/use-appearance';
 
 type Appearance = 'light' | 'dark' | 'system';
@@ -9,66 +8,67 @@ function resolveIsDark(appearance: Appearance): boolean {
     if (typeof document !== 'undefined') {
         const html = document.documentElement;
         const dt = html.getAttribute('data-theme');
+        const hasClass = html.classList.contains('dark');
+        
         if (dt === 'dark') return true;
         if (dt === 'light') return false;
-        if (html.classList.contains('dark')) return true;
+        if (hasClass) return true;
+        
+        // Also check body for dark class
+        if (document.body.classList.contains('dark')) return true;
+        
+        // IMPORTANT: If we have DOM elements but no dark classes/attributes,
+        // then we're definitely in light mode, regardless of appearance setting
+        if (html.className !== undefined) {
+            return false;
+        }
     }
+    
     if (appearance === 'dark') return true;
     if (appearance === 'light') return false;
+    
     if (typeof window !== 'undefined') {
         return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
     }
+    
     return false;
 }
 
 const AppLogo: React.FC = () => {
     const { appearance } = useAppearance();
 
-    const [isDark, setIsDark] = useState<boolean>(() => resolveIsDark(appearance));
+    const [isDark, setIsDark] = useState<boolean>(() => {
+        return resolveIsDark(appearance);
+    });
 
-    // Update when app-level appearance changes (e.g. user picks light/dark/system)
     useEffect(() => {
-        setIsDark(resolveIsDark(appearance));
-    }, [appearance]);
-
-    // Live updates:
-    // - OS theme changes (only relevant when using system)
-    // - <html> mutations: class="dark" / data-theme="dark"
-    // - localStorage changes from other tabs/windows
-    useEffect(() => {
-        if (typeof window === 'undefined' || typeof document === 'undefined') return;
-
-        const mql = window.matchMedia?.('(prefers-color-scheme: dark)');
-        const onMqlChange = () => setIsDark(resolveIsDark(appearance));
-        mql?.addEventListener('change', onMqlChange);
-
-        const html = document.documentElement;
-        const mo = new MutationObserver(() => setIsDark(resolveIsDark(appearance)));
-        mo.observe(html, { attributes: true, attributeFilter: ['class', 'data-theme'] });
-
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === 'appearance') setIsDark(resolveIsDark((e.newValue as Appearance | null) ?? 'system'));
+        const checkTheme = () => {
+            const currentIsDark = resolveIsDark(appearance);
+            
+            if (currentIsDark !== isDark) {
+                setIsDark(currentIsDark);
+            }
         };
-        window.addEventListener('storage', onStorage);
+
+        checkTheme();
+        const intervalId = setInterval(checkTheme, 100);
 
         return () => {
-            mql?.removeEventListener('change', onMqlChange);
-            mo.disconnect();
-            window.removeEventListener('storage', onStorage);
+            clearInterval(intervalId);
         };
-    }, [appearance]);
+    }, [appearance, isDark]);
 
-    const src = useMemo(
-        () => (isDark ? '/assets/img/logos/dark.png' : '/assets/img/logos/light.png'),
-        [isDark]
-    );
+    const src = useMemo(() => {
+        return isDark ? '/assets/img/logos/dark.png' : '/assets/img/logos/light.png';
+    }, [isDark]);
 
     return (
-        <AssetImage
-            key={isDark ? 'logo-dark-ui' : 'logo-light-ui'} // force remount if your AssetImage memorizes
+        <img
+            key={`logo-${isDark ? 'dark' : 'light'}-${Date.now()}`}
             src={src}
             alt="Logo"
             className="w-50 h-auto ml-2"
+            style={{ maxWidth: '200px' }}
         />
     );
 };
