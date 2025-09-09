@@ -1,0 +1,17 @@
+{
+  "home": "Startseite",
+  "success": {
+    "title": "Erfolgreich"
+  },
+  "errors": {
+    "title": "Fehler"
+  },
+
+  "header": {
+    "test": "Kopfzeile"
+  },
+
+  "footer": {
+    "test": "Fußzeile"
+  }
+}

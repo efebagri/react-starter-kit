@@ -1,0 +1,7 @@
+{
+  "404": {
+    "title": "Doğru olmayan bir şeyler var.",
+    "text": "Açmaya çalıştığınız sayfa mevcut değil. Adresi yanlış yazmış olabilirsiniz veya\n sayfası başka bir URL'ye taşındı. Bunun bir hata olduğunu düşünüyorsanız destek ekibiyle iletişime geçin.",
+    "button": "Ana sayfaya geri dön"
+  }
+}

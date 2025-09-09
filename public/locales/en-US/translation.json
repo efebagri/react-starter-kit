@@ -1,0 +1,17 @@
+{
+  "home": "Homepage",
+  "success": {
+    "title": "Successfully"
+  },
+  "errors": {
+    "title": "Error"
+  },
+
+  "header": {
+    "test": "Header"
+  },
+
+  "footer": {
+    "test": "Footer"
+  }
+}
